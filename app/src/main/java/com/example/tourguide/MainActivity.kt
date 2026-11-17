@@ -34,7 +34,6 @@ import androidx.core.content.ContextCompat
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import org.osmdroid.config.Configuration
-import org.osmdroid.tileprovider.constants.OpenStreetMapTileProviderConstants
 import org.osmdroid.tileprovider.tilesource.TileSourceFactory
 import org.osmdroid.util.GeoPoint
 import org.osmdroid.views.MapView
@@ -53,14 +52,13 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
-        // راه‌اندازی osmdroid (باید قبل از ساخت MapView انجام شود)
+        // راهاندازی osmdroid (باید قبل از ساخت MapView انجام شود)
         Configuration.getInstance().load(
             applicationContext,
             applicationContext.getSharedPreferences("osmdroid", Context.MODE_PRIVATE)
         )
         // تعیین هویت برنامه برای سرورهای OSM (رفع خطای 403)
         Configuration.getInstance().userAgentValue = packageName
-        OpenStreetMapTileProviderConstants.setUserAgentValue(packageName)
 
         setContent {
             MaterialTheme {
@@ -134,7 +132,6 @@ fun OSMComposableMap(
             setTileSource(TileSourceFactory.MAPNIK)
             setMultiTouchControls(true)
             controller.setZoom(15.0)
-            // مرکز پیش‌فرض: تهران (تا وقتی موقعیت واقعی برسد)
             controller.setCenter(GeoPoint(35.6892, 51.3890))
         }
     }
@@ -143,7 +140,6 @@ fun OSMComposableMap(
         Marker(mapView).apply {
             setAnchor(Marker.ANCHOR_CENTER, Marker.ANCHOR_BOTTOM)
             title = "موقعیت شما"
-            // آیکون موقعیت (به جای نشانگر سبز پیش‌فرض)
             icon = ContextCompat.getDrawable(context, android.R.drawable.ic_menu_mylocation)
         }.also {
             mapView.overlays.add(it)
