@@ -34,7 +34,6 @@ import androidx.core.content.ContextCompat
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import org.osmdroid.config.Configuration
-import org.osmdroid.tileprovider.tilesource.TileSourceFactory
 import org.osmdroid.tileprovider.tilesource.XYTileSource
 import org.osmdroid.util.GeoPoint
 import org.osmdroid.views.MapView
@@ -57,7 +56,6 @@ class MainActivity : ComponentActivity() {
             applicationContext,
             applicationContext.getSharedPreferences("osmdroid", Context.MODE_PRIVATE)
         )
-        // تنظیم User-Agent معتبر (الزام OSM)
         Configuration.getInstance().userAgentValue = packageName
 
         setContent {
@@ -127,20 +125,23 @@ fun OSMComposableMap(
     val context = LocalContext.current
     val lifecycleOwner = LocalLifecycleOwner.current
 
-    // ✅ استفاده از MapQuest Open به جای MAPNIK (بدون نیاز به کلید API)
-    val mapQuestTileSource = remember {
+    // ✅ استفاده از OpenTopoMap به عنوان منبع کاشی فعال و رایگان
+    val openTopoTileSource = remember {
         XYTileSource(
-            "MapQuestOSM",
-            1, 19, 256, ".png",
-            arrayOf("https://otile1.mqcdn.com/tiles/1.0.0/map/"),
-            "© MapQuest, © OpenStreetMap contributors"
+            "OpenTopoMap",
+            0, 17, 256, ".png",
+            arrayOf(
+                "https://a.tile.opentopomap.org/",
+                "https://b.tile.opentopomap.org/",
+                "https://c.tile.opentopomap.org/"
+            ),
+            "© OpenTopoMap (CC-BY-SA)"
         )
     }
 
     val mapView = remember {
         MapView(context).apply {
-            // ⚠️ منبع کاشی را به MapQuest تغییر می‌دهیم
-            setTileSource(mapQuestTileSource)
+            setTileSource(openTopoTileSource)
             setMultiTouchControls(true)
             controller.setZoom(15.0)
             controller.setCenter(GeoPoint(35.6892, 51.3890))
