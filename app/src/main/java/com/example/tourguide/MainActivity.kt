@@ -20,6 +20,8 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -106,6 +108,7 @@ fun HomeScreen(onStartTracking: () -> Unit) {
     val context = LocalContext.current
     val location by LocationRepository.location.collectAsState()
     var showEmergencyDialog by remember { mutableStateOf(false) }
+    var showRoutingDialog by remember { mutableStateOf(false) }
     var lastPhotoFile by remember { mutableStateOf<File?>(null) }
     var pendingPhotoUri by remember { mutableStateOf<Uri?>(null) }
 
@@ -113,8 +116,6 @@ fun HomeScreen(onStartTracking: () -> Unit) {
         contract = ActivityResultContracts.TakePicture()
     ) { success ->
         if (success && pendingPhotoUri != null) {
-            // فایل عکس ذخیره شده است؛ مسیر فایل را از content URI استخراج نمی‌کنیم،
-            // بلکه فایل را دوباره می‌سازیم
             pendingPhotoUri = null
             lastPhotoFile = lastSavedFile
         }
@@ -141,12 +142,11 @@ fun HomeScreen(onStartTracking: () -> Unit) {
                 .weight(1f)
         )
 
-        // پیش‌نمایش آخرین عکس (اگر وجود داشته باشد)
         if (lastPhotoFile != null) {
             PhotoThumbnail(lastPhotoFile!!)
         }
 
-        // ردیف دو دکمه: شروع موقعیت و گرفتن عکس
+        // ردیف اول: شروع موقعیت + گرفتن عکس
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.spacedBy(8.dp)
@@ -181,12 +181,24 @@ fun HomeScreen(onStartTracking: () -> Unit) {
             }
         }
 
-        Button(
-            onClick = { showEmergencyDialog = true },
+        // ردیف دوم: مسیریابی + گزارش اضطراری
+        Row(
             modifier = Modifier.fillMaxWidth(),
-            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFD32F2F))
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
         ) {
-            Text("🚨 گزارش اضطراری", color = Color.White)
+            Button(
+                onClick = { showRoutingDialog = true },
+                modifier = Modifier.weight(1f)
+            ) {
+                Text("🗺️ مسیریابی")
+            }
+            Button(
+                onClick = { showEmergencyDialog = true },
+                modifier = Modifier.weight(1f),
+                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFD32F2F))
+            ) {
+                Text("🚨 اضطراری", color = Color.White)
+            }
         }
 
         Spacer(modifier = Modifier.padding(4.dp))
@@ -198,18 +210,22 @@ fun HomeScreen(onStartTracking: () -> Unit) {
             onDismiss = { showEmergencyDialog = false }
         )
     }
+
+    if (showRoutingDialog) {
+        RoutingDialog(
+            location = location,
+            onDismiss = { showRoutingDialog = false }
+        )
+    }
 }
 
-// متغیر کمکی برای نگهداری فایل ذخیره‌شده (بدون نیاز به وضعیت Compose)
 private var lastSavedFile: File? = null
 
 @Composable
 fun PhotoThumbnail(file: File) {
     val bitmap = remember(file) {
         try {
-            val options = BitmapFactory.Options().apply {
-                inSampleSize = 4
-            }
+            val options = BitmapFactory.Options().apply { inSampleSize = 4 }
             BitmapFactory.decodeFile(file.absolutePath, options)
         } catch (e: Exception) {
             null
@@ -225,6 +241,77 @@ fun PhotoThumbnail(file: File) {
             contentScale = ContentScale.Crop
         )
     }
+}
+
+@Composable
+fun RoutingDialog(
+    location: Pair<Double, Double>?,
+    onDismiss: () -> Unit
+) {
+    val context = LocalContext.current
+
+    val sortedStations = remember(location) {
+        if (location != null) {
+            AppConfig.STATIONS
+                .map { station ->
+                    station to StationHelper.distanceKm(
+                        location.first, location.second,
+                        station.latitude, station.longitude
+                    )
+                }
+                .sortedBy { it.second }
+        } else {
+            AppConfig.STATIONS.map { it to null }
+        }
+    }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("ایستگاه‌های مسیر") },
+        text = {
+            if (location == null) {
+                Text("ابتدا دکمه «شروع موقعیت» را بزنید تا فاصله‌ها محاسبه شوند.")
+            } else {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .verticalScroll(rememberScrollState()),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    sortedStations.forEach { (station, distance) ->
+                        if (distance != null) {
+                            val minutes = StationHelper.estimateMinutes(distance)
+                            Button(
+                                onClick = {
+                                    StationHelper.openNavigation(context, station)
+                                    onDismiss()
+                                },
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Column(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalAlignment = Alignment.Start
+                                ) {
+                                    Text(
+                                        text = station.name,
+                                        style = MaterialTheme.typography.bodyLarge
+                                    )
+                                    Text(
+                                        text = "%.1f کیلومتر • حدود %d دقیقه"
+                                            .format(distance, minutes),
+                                        style = MaterialTheme.typography.bodySmall
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = onDismiss) { Text("بستن") }
+        }
+    )
 }
 
 @Composable
@@ -303,13 +390,27 @@ fun OSMComposableMap(
         }
     }
 
-    val marker = remember {
+    // نشانگر موقعیت کاربر (آبی)
+    val userMarker = remember {
         Marker(mapView).apply {
             setAnchor(Marker.ANCHOR_CENTER, Marker.ANCHOR_BOTTOM)
             title = "موقعیت شما"
             icon = ContextCompat.getDrawable(context, android.R.drawable.ic_menu_mylocation)
         }.also {
             mapView.overlays.add(it)
+        }
+    }
+
+    // نشانگر ایستگاه‌ها (ستاره زرد)
+    remember {
+        AppConfig.STATIONS.forEach { station ->
+            val stationMarker = Marker(mapView).apply {
+                position = GeoPoint(station.latitude, station.longitude)
+                setAnchor(Marker.ANCHOR_CENTER, Marker.ANCHOR_BOTTOM)
+                title = station.name
+                icon = ContextCompat.getDrawable(context, android.R.drawable.star_big_on)
+            }
+            mapView.overlays.add(stationMarker)
         }
     }
 
@@ -336,7 +437,7 @@ fun OSMComposableMap(
         update = { view ->
             if (location != null) {
                 val point = GeoPoint(location.first, location.second)
-                marker.position = point
+                userMarker.position = point
                 if (!hasCentered) {
                     view.controller.setCenter(point)
                     hasCentered = true
