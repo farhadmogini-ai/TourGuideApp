@@ -54,10 +54,6 @@ class MainActivity : ComponentActivity() {
         }
     }
 
-    private val smsPermissionLauncher = registerForActivityResult(
-        ActivityResultContracts.RequestPermission()
-    ) { /* نتیجه: پیامک بعد از اجازه، خودش Toast می‌دهد */ }
-
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
@@ -71,8 +67,7 @@ class MainActivity : ComponentActivity() {
             MaterialTheme {
                 Surface(modifier = Modifier.fillMaxSize()) {
                     HomeScreen(
-                        onStartTracking = { requestLocationPermissions() },
-                        onRequestSmsPermission = { requestSmsPermission() }
+                        onStartTracking = { requestLocationPermissions() }
                     )
                 }
             }
@@ -90,15 +85,6 @@ class MainActivity : ComponentActivity() {
         locationPermissionLauncher.launch(permissions.toTypedArray())
     }
 
-    private fun requestSmsPermission() {
-        if (ContextCompat.checkSelfPermission(
-                this, Manifest.permission.SEND_SMS
-            ) != android.content.pm.PackageManager.PERMISSION_GRANTED
-        ) {
-            smsPermissionLauncher.launch(Manifest.permission.SEND_SMS)
-        }
-    }
-
     private fun startLocationService() {
         val intent = Intent(this, LocationService::class.java)
         ContextCompat.startForegroundService(this, intent)
@@ -106,12 +92,8 @@ class MainActivity : ComponentActivity() {
 }
 
 @Composable
-fun HomeScreen(
-    onStartTracking: () -> Unit,
-    onRequestSmsPermission: () -> Unit
-) {
+fun HomeScreen(onStartTracking: () -> Unit) {
     val location by LocationRepository.location.collectAsState()
-    val context = LocalContext.current
     var showDialog by remember { mutableStateOf(false) }
 
     Column(
@@ -139,12 +121,8 @@ fun HomeScreen(
             Text("شروع ارسال موقعیت")
         }
 
-        // دکمه اضطراری قرمز بزرگ
         Button(
-            onClick = {
-                onRequestSmsPermission()
-                showDialog = true
-            },
+            onClick = { showDialog = true },
             modifier = Modifier.fillMaxWidth(),
             colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFD32F2F))
         ) {
@@ -183,33 +161,27 @@ fun EmergencyDialog(
                         onDismiss()
                     },
                     modifier = Modifier.fillMaxWidth()
-                ) {
-                    Text("🚌 خرابی اتوبوس")
-                }
+                ) { Text("🚌 خرابی اتوبوس") }
+
                 Button(
                     onClick = {
                         EmergencySmsHelper.sendEmergencySms(context, "گم شدن مسافر", location)
                         onDismiss()
                     },
                     modifier = Modifier.fillMaxWidth()
-                ) {
-                    Text("👤 گم شدن مسافر")
-                }
+                ) { Text("👤 گم شدن مسافر") }
+
                 Button(
                     onClick = {
                         EmergencySmsHelper.sendEmergencySms(context, "بیماری مسافر", location)
                         onDismiss()
                     },
                     modifier = Modifier.fillMaxWidth()
-                ) {
-                    Text("🏥 بیماری مسافر")
-                }
+                ) { Text("🏥 بیماری مسافر") }
             }
         },
         confirmButton = {
-            TextButton(onClick = onDismiss) {
-                Text("لغو")
-            }
+            TextButton(onClick = onDismiss) { Text("لغو") }
         }
     )
 }
