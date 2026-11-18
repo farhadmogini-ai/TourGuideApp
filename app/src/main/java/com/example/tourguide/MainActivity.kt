@@ -35,6 +35,7 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import org.osmdroid.config.Configuration
 import org.osmdroid.tileprovider.tilesource.TileSourceFactory
+import org.osmdroid.tileprovider.tilesource.XYTileSource
 import org.osmdroid.util.GeoPoint
 import org.osmdroid.views.MapView
 import org.osmdroid.views.overlay.Marker
@@ -52,12 +53,11 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
-        // راهاندازی osmdroid (باید قبل از ساخت MapView انجام شود)
         Configuration.getInstance().load(
             applicationContext,
             applicationContext.getSharedPreferences("osmdroid", Context.MODE_PRIVATE)
         )
-        // تعیین هویت برنامه برای سرورهای OSM (رفع خطای 403)
+        // تنظیم User-Agent معتبر (الزام OSM)
         Configuration.getInstance().userAgentValue = packageName
 
         setContent {
@@ -127,9 +127,20 @@ fun OSMComposableMap(
     val context = LocalContext.current
     val lifecycleOwner = LocalLifecycleOwner.current
 
+    // ✅ استفاده از MapQuest Open به جای MAPNIK (بدون نیاز به کلید API)
+    val mapQuestTileSource = remember {
+        XYTileSource(
+            "MapQuestOSM",
+            1, 19, 256, ".png",
+            arrayOf("https://otile1.mqcdn.com/tiles/1.0.0/map/"),
+            "© MapQuest, © OpenStreetMap contributors"
+        )
+    }
+
     val mapView = remember {
         MapView(context).apply {
-            setTileSource(TileSourceFactory.MAPNIK)
+            // ⚠️ منبع کاشی را به MapQuest تغییر می‌دهیم
+            setTileSource(mapQuestTileSource)
             setMultiTouchControls(true)
             controller.setZoom(15.0)
             controller.setCenter(GeoPoint(35.6892, 51.3890))
