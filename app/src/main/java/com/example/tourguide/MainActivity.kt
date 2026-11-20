@@ -61,7 +61,10 @@ class MainActivity : ComponentActivity() {
     private val locationPermissionLauncher = registerForActivityResult(
         ActivityResultContracts.RequestMultiplePermissions()
     ) { permissions ->
-        if (permissions.values.all { it }) {
+        // ✅ فقط مجوز موقعیت مهم است، نه نوتیفیکیشن
+        val hasLocation = permissions[Manifest.permission.ACCESS_FINE_LOCATION] == true ||
+                permissions[Manifest.permission.ACCESS_COARSE_LOCATION] == true
+        if (hasLocation) {
             startLocationService()
         }
     }
@@ -107,6 +110,7 @@ class MainActivity : ComponentActivity() {
 fun HomeScreen(onStartTracking: () -> Unit) {
     val context = LocalContext.current
     val location by LocationRepository.location.collectAsState()
+    val serverStatus by LocationRepository.serverStatus.collectAsState()
     var showEmergencyDialog by remember { mutableStateOf(false) }
     var showRoutingDialog by remember { mutableStateOf(false) }
     var lastPhotoFile by remember { mutableStateOf<File?>(null) }
@@ -135,6 +139,13 @@ fun HomeScreen(onStartTracking: () -> Unit) {
             Text(text = "در انتظار دریافت موقعیت...")
         }
 
+        // 🆕 نمایش وضعیت ارسال به سرور
+        Text(
+            text = "وضعیت سرور: $serverStatus",
+            style = MaterialTheme.typography.bodySmall,
+            color = if (serverStatus.startsWith("✅")) Color(0xFF2E7D32) else Color(0xFF757575)
+        )
+
         OSMComposableMap(
             location = location,
             modifier = Modifier
@@ -146,7 +157,6 @@ fun HomeScreen(onStartTracking: () -> Unit) {
             PhotoThumbnail(lastPhotoFile!!)
         }
 
-        // ردیف اول: شروع موقعیت + گرفتن عکس
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.spacedBy(8.dp)
@@ -181,7 +191,6 @@ fun HomeScreen(onStartTracking: () -> Unit) {
             }
         }
 
-        // ردیف دوم: مسیریابی + گزارش اضطراری
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.spacedBy(8.dp)
@@ -390,7 +399,6 @@ fun OSMComposableMap(
         }
     }
 
-    // نشانگر موقعیت کاربر (آبی)
     val userMarker = remember {
         Marker(mapView).apply {
             setAnchor(Marker.ANCHOR_CENTER, Marker.ANCHOR_BOTTOM)
@@ -401,7 +409,6 @@ fun OSMComposableMap(
         }
     }
 
-    // نشانگر ایستگاه‌ها (ستاره زرد)
     remember {
         AppConfig.STATIONS.forEach { station ->
             val stationMarker = Marker(mapView).apply {
