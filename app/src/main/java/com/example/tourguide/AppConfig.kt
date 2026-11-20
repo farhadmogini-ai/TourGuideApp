@@ -19,7 +19,7 @@ object AppConfig {
     const val BUS_NUMBER = "5"
 
     // 📞 شماره تلفن این راهنما (برای نمایش در پنل مدیر)
-    const val GUIDE_PHONE = "09141234567"
+    const val GUIDE_PHONE = "09143031986"
 
     // 🚌 ایستگاه‌های نمونه مسیر تبریز → مشهد
     val STATIONS = listOf(
