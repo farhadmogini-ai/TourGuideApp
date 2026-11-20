@@ -10,8 +10,15 @@ object AppConfig {
     // 📞 شماره کاربر ۳ (مدیر اصلی) — شماره تست
     const val MANAGER_PHONE_NUMBER = "09148687240"
 
+    // 🌐 آدرس سرور محلی — IP کامپیوتر شما
+    const val SERVER_URL = "http://192.168.1.10:3000"
+
+    // 🆔 شناسه این راهنما
+    const val GUIDE_ID = "guide-1"
+    const val GUIDE_NAME = "راهنمای تست"
+    const val BUS_NUMBER = "5"
+
     // 🚌 ایستگاه‌های نمونه مسیر تبریز → مشهد
-    // (بعداً مدیر اصلی می‌تواند این لیست را از سرور دریافت کند)
     val STATIONS = listOf(
         Station("تبریز - مبدا", 38.0800, 46.2919),
         Station("استراحتگاه زنجان", 36.6769, 48.4963),
