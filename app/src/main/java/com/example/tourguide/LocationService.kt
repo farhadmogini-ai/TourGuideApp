@@ -112,6 +112,7 @@ class LocationService : Service() {
                 put("id", AppConfig.GUIDE_ID)
                 put("name", AppConfig.GUIDE_NAME)
                 put("busNumber", AppConfig.BUS_NUMBER)
+                put("phone", AppConfig.GUIDE_PHONE)  // 🆕 شماره تلفن
                 put("lat", lat)
                 put("lon", lon)
             }
