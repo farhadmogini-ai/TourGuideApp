@@ -37,7 +37,7 @@ class LocationService : Service() {
         const val CHANNEL_ID = "location_channel"
         const val NOTIFICATION_ID = 1001
         const val TAG = "LocationService"
-        const val SEND_INTERVAL_MS = 10_000L
+        const val SEND_INTERVAL_MS = 30_000L
     }
 
     override fun onCreate() {
