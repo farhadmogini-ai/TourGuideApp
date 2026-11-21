@@ -3,22 +3,17 @@ package com.example.tourguide
 import android.Manifest
 import android.content.Context
 import android.content.Intent
-import android.graphics.BitmapFactory
-import android.net.Uri
 import android.os.Build
 import android.os.Bundle
 import androidx.activity.ComponentActivity
-import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
@@ -39,14 +34,11 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.asImageBitmap
-import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.core.content.ContextCompat
-import androidx.core.content.FileProvider
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import org.osmdroid.config.Configuration
@@ -54,14 +46,12 @@ import org.osmdroid.tileprovider.tilesource.XYTileSource
 import org.osmdroid.util.GeoPoint
 import org.osmdroid.views.MapView
 import org.osmdroid.views.overlay.Marker
-import java.io.File
 
 class MainActivity : ComponentActivity() {
 
     private val locationPermissionLauncher = registerForActivityResult(
         ActivityResultContracts.RequestMultiplePermissions()
     ) { permissions ->
-        // ✅ فقط مجوز موقعیت مهم است، نه نوتیفیکیشن
         val hasLocation = permissions[Manifest.permission.ACCESS_FINE_LOCATION] == true ||
                 permissions[Manifest.permission.ACCESS_COARSE_LOCATION] == true
         if (hasLocation) {
@@ -113,17 +103,6 @@ fun HomeScreen(onStartTracking: () -> Unit) {
     val serverStatus by LocationRepository.serverStatus.collectAsState()
     var showEmergencyDialog by remember { mutableStateOf(false) }
     var showRoutingDialog by remember { mutableStateOf(false) }
-    var lastPhotoFile by remember { mutableStateOf<File?>(null) }
-    var pendingPhotoUri by remember { mutableStateOf<Uri?>(null) }
-
-    val takePictureLauncher = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.TakePicture()
-    ) { success ->
-        if (success && pendingPhotoUri != null) {
-            pendingPhotoUri = null
-            lastPhotoFile = lastSavedFile
-        }
-    }
 
     Column(
         modifier = Modifier.fillMaxSize().padding(12.dp),
@@ -139,7 +118,6 @@ fun HomeScreen(onStartTracking: () -> Unit) {
             Text(text = "در انتظار دریافت موقعیت...")
         }
 
-        // 🆕 نمایش وضعیت ارسال به سرور
         Text(
             text = "وضعیت سرور: $serverStatus",
             style = MaterialTheme.typography.bodySmall,
@@ -153,10 +131,6 @@ fun HomeScreen(onStartTracking: () -> Unit) {
                 .weight(1f)
         )
 
-        if (lastPhotoFile != null) {
-            PhotoThumbnail(lastPhotoFile!!)
-        }
-
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.spacedBy(8.dp)
@@ -168,46 +142,19 @@ fun HomeScreen(onStartTracking: () -> Unit) {
                 Text("شروع موقعیت")
             }
             Button(
-                onClick = {
-                    val photoDir = context.getExternalFilesDir("Pictures")
-                        ?: context.filesDir
-                    if (!photoDir.exists()) photoDir.mkdirs()
-                    val photoFile = File(
-                        photoDir,
-                        "photo_${System.currentTimeMillis()}.jpg"
-                    )
-                    lastSavedFile = photoFile
-                    val uri = FileProvider.getUriForFile(
-                        context,
-                        "${context.packageName}.fileprovider",
-                        photoFile
-                    )
-                    pendingPhotoUri = uri
-                    takePictureLauncher.launch(uri)
-                },
-                modifier = Modifier.weight(1f)
-            ) {
-                Text("📷 گرفتن عکس")
-            }
-        }
-
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(8.dp)
-        ) {
-            Button(
                 onClick = { showRoutingDialog = true },
                 modifier = Modifier.weight(1f)
             ) {
                 Text("🗺️ مسیریابی")
             }
-            Button(
-                onClick = { showEmergencyDialog = true },
-                modifier = Modifier.weight(1f),
-                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFD32F2F))
-            ) {
-                Text("🚨 اضطراری", color = Color.White)
-            }
+        }
+
+        Button(
+            onClick = { showEmergencyDialog = true },
+            modifier = Modifier.fillMaxWidth(),
+            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFD32F2F))
+        ) {
+            Text("🚨 گزارش اضطراری", color = Color.White)
         }
 
         Spacer(modifier = Modifier.padding(4.dp))
@@ -224,30 +171,6 @@ fun HomeScreen(onStartTracking: () -> Unit) {
         RoutingDialog(
             location = location,
             onDismiss = { showRoutingDialog = false }
-        )
-    }
-}
-
-private var lastSavedFile: File? = null
-
-@Composable
-fun PhotoThumbnail(file: File) {
-    val bitmap = remember(file) {
-        try {
-            val options = BitmapFactory.Options().apply { inSampleSize = 4 }
-            BitmapFactory.decodeFile(file.absolutePath, options)
-        } catch (e: Exception) {
-            null
-        }
-    }
-    if (bitmap != null) {
-        Image(
-            bitmap = bitmap.asImageBitmap(),
-            contentDescription = "آخرین عکس گرفته شده",
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(120.dp),
-            contentScale = ContentScale.Crop
         )
     }
 }
