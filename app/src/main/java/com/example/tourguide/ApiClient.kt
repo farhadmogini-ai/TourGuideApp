@@ -7,13 +7,18 @@ import org.json.JSONObject
 import java.net.HttpURLConnection
 import java.net.URL
 
+sealed class LoginResult {
+    data class Success(val token: String, val user: User) : LoginResult()
+    data class Failure(val message: String) : LoginResult()
+}
+
 object ApiClient {
 
     suspend fun login(
         serverUrl: String,
         username: String,
         password: String
-    ): Pair<String, User>? = withContext(Dispatchers.IO) {
+    ): LoginResult = withContext(Dispatchers.IO) {
         try {
             val conn = URL("$serverUrl/api/auth/login").openConnection() as HttpURLConnection
             conn.requestMethod = "POST"
@@ -28,8 +33,24 @@ object ApiClient {
             }
             conn.outputStream.use { it.write(body.toString().toByteArray(Charsets.UTF_8)) }
 
-            if (conn.responseCode != 200) return@withContext null
-            val responseBody = conn.inputStream.bufferedReader().readText()
+            val code = conn.responseCode
+            val responseBody = if (code in 200..299) {
+                conn.inputStream.bufferedReader().readText()
+            } else {
+                conn.errorStream?.bufferedReader()?.readText() ?: ""
+            }
+            conn.disconnect()
+
+            if (code != 200) {
+                val serverMsg = try {
+                    JSONObject(responseBody).optString("error", "")
+                } catch (e: Exception) { "" }
+                return@withContext LoginResult.Failure(
+                    if (serverMsg.isNotEmpty()) serverMsg
+                    else "خطای سرور: کد $code"
+                )
+            }
+
             val obj = JSONObject(responseBody)
             val token = obj.getString("token")
             val u = obj.getJSONObject("user")
@@ -44,8 +65,10 @@ object ApiClient {
                 originHotel = u.optString("originHotel").takeIf { it.isNotEmpty() && it != "null" },
                 phone = u.optString("phone").takeIf { it.isNotEmpty() && it != "null" }
             )
-            token to user
-        } catch (e: Exception) { null }
+            LoginResult.Success(token, user)
+        } catch (e: Exception) {
+            LoginResult.Failure("خطای شبکه: ${e.message?.take(60) ?: "اتصال برقرار نشد"}")
+        }
     }
 
     suspend fun getStations(serverUrl: String, token: String): List<Station>? =
@@ -55,7 +78,6 @@ object ApiClient {
                 conn.setRequestProperty("Authorization", "Bearer $token")
                 conn.connectTimeout = 10000
                 conn.readTimeout = 10000
-
                 if (conn.responseCode != 200) return@withContext null
                 val body = conn.inputStream.bufferedReader().readText()
                 val arr = JSONArray(body)
