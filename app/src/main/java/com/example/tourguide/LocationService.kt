@@ -18,19 +18,20 @@ import android.os.IBinder
 import android.util.Log
 import androidx.core.app.NotificationCompat
 import androidx.core.content.ContextCompat
-import org.json.JSONObject
-import java.net.HttpURLConnection
-import java.net.URL
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
+import kotlinx.coroutines.launch
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
-import java.util.concurrent.Executors
 
 class LocationService : Service() {
 
     private lateinit var locationManager: LocationManager
     private var locationListener: LocationListener? = null
-    private val executor = Executors.newSingleThreadExecutor()
+    private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private var lastSentTime = 0L
 
     companion object {
@@ -47,6 +48,13 @@ class LocationService : Service() {
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+        val token = SessionManager.getToken(this)
+        if (token == null) {
+            LocationRepository.updateServerStatus("❌ لطفاً ابتدا وارد شوید")
+            stopSelf()
+            return START_NOT_STICKY
+        }
+
         val notification = buildNotification()
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
             startForeground(NOTIFICATION_ID, notification, ServiceInfo.FOREGROUND_SERVICE_TYPE_LOCATION)
@@ -94,54 +102,24 @@ class LocationService : Service() {
         val now = System.currentTimeMillis()
         if (now - lastSentTime < SEND_INTERVAL_MS) return
         lastSentTime = now
-        executor.execute { sendToServer(lat, lon) }
-    }
 
-    private fun sendToServer(lat: Double, lon: Double) {
+        val token = SessionManager.getToken(this) ?: return
         val timeStr = SimpleDateFormat("HH:mm:ss", Locale.getDefault()).format(Date())
-        try {
-            val url = URL("${AppConfig.SERVER_URL}/api/location")
-            val conn = url.openConnection() as HttpURLConnection
-            conn.requestMethod = "POST"
-            conn.setRequestProperty("Content-Type", "application/json; charset=utf-8")
-            conn.doOutput = true
-            conn.connectTimeout = 5000
-            conn.readTimeout = 5000
 
-            val json = JSONObject().apply {
-                put("id", AppConfig.GUIDE_ID)
-                put("name", AppConfig.GUIDE_NAME)
-                put("busNumber", AppConfig.BUS_NUMBER)
-                put("phone", AppConfig.GUIDE_PHONE)  // 🆕 شماره تلفن
-                put("lat", lat)
-                put("lon", lon)
-            }
-
-            conn.outputStream.use { os ->
-                os.write(json.toString().toByteArray(Charsets.UTF_8))
-            }
-
-            val code = conn.responseCode
-            if (code == 200) {
-                Log.d(TAG, "📍 موقعیت ارسال شد: $lat, $lon")
+        scope.launch {
+            val ok = ApiClient.sendLocation(AppConfig.SERVER_URL, token, lat, lon)
+            if (ok) {
                 LocationRepository.updateServerStatus("✅ ارسال موفق - $timeStr")
             } else {
-                Log.w(TAG, "پاسخ سرور: $code")
-                LocationRepository.updateServerStatus("⚠️ پاسخ سرور: $code - $timeStr")
+                LocationRepository.updateServerStatus("❌ خطای ارسال - $timeStr")
             }
-            conn.disconnect()
-        } catch (e: Exception) {
-            Log.e(TAG, "خطا در ارسال موقعیت: ${e.message}")
-            LocationRepository.updateServerStatus("❌ خطا: ${e.message?.take(40)} - $timeStr")
         }
     }
 
     private fun createChannel() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             val channel = NotificationChannel(
-                CHANNEL_ID,
-                "ردیابی موقعیت",
-                NotificationManager.IMPORTANCE_LOW
+                CHANNEL_ID, "ردیابی موقعیت", NotificationManager.IMPORTANCE_LOW
             )
             val nm = getSystemService(NotificationManager::class.java)
             nm.createNotificationChannel(channel)
@@ -159,7 +137,7 @@ class LocationService : Service() {
 
     override fun onDestroy() {
         locationListener?.let { locationManager.removeUpdates(it) }
-        executor.shutdown()
+        scope.cancel()
         super.onDestroy()
     }
 
