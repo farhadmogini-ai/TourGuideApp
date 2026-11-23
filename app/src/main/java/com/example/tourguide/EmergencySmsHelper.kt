@@ -7,15 +7,15 @@ import android.os.Handler
 import android.os.Looper
 import android.util.Log
 import android.widget.Toast
-import org.json.JSONObject
-import java.net.HttpURLConnection
-import java.net.URL
-import java.util.concurrent.Executors
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.launch
 
 object EmergencySmsHelper {
 
     private const val TAG = "EmergencySms"
-    private val executor = Executors.newSingleThreadExecutor()
+    private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private val mainHandler = Handler(Looper.getMainLooper())
 
     fun sendEmergencySms(
@@ -23,16 +23,34 @@ object EmergencySmsHelper {
         problemType: String,
         location: Pair<Double, Double>?
     ) {
-        // ۱. ارسال به سرور (برای پنل مدیر)
         val appContext = context.applicationContext
-        executor.execute { sendToServer(appContext, problemType, location) }
 
-        // ۲. باز کردن اپ پیامک (روش فعلی)
-        val message = buildMessage(problemType, location)
+        // ۱. ارسال به سرور (اگر لاگین هست)
+        val token = SessionManager.getToken(appContext)
+        if (token != null) {
+            scope.launch {
+                val ok = ApiClient.sendEmergency(
+                    AppConfig.SERVER_URL, token, problemType,
+                    location?.first, location?.second
+                )
+                mainHandler.post {
+                    if (ok) {
+                        Toast.makeText(appContext, "✅ به پنل ارسال شد", Toast.LENGTH_SHORT).show()
+                    } else {
+                        Toast.makeText(appContext, "⚠️ ارسال به پنل ناموفق", Toast.LENGTH_SHORT).show()
+                    }
+                }
+            }
+        }
+
+        // ۲. باز کردن اپ پیامک (همیشه)
+        val user = SessionManager.getUser(appContext)
+        val message = buildMessage(user, problemType, location)
         openSmsApp(context, message)
     }
 
     private fun buildMessage(
+        user: User?,
         problemType: String,
         location: Pair<Double, Double>?
     ): String {
@@ -41,66 +59,12 @@ object EmergencySmsHelper {
         } else {
             "موقعیت در دسترس نیست"
         }
-        return "🚨 گزارش اضطراری\nمشکل: $problemType\n$locText"
-    }
-
-    private fun sendToServer(
-        context: Context,
-        problemType: String,
-        location: Pair<Double, Double>?
-    ) {
-        try {
-            val url = URL("${AppConfig.SERVER_URL}/api/emergency")
-            val conn = url.openConnection() as HttpURLConnection
-            conn.requestMethod = "POST"
-            conn.setRequestProperty("Content-Type", "application/json; charset=utf-8")
-            conn.doOutput = true
-            conn.connectTimeout = 5000
-            conn.readTimeout = 5000
-
-            val json = JSONObject().apply {
-                put("guideId", AppConfig.GUIDE_ID)
-                put("guideName", AppConfig.GUIDE_NAME)
-                put("busNumber", AppConfig.BUS_NUMBER)
-                put("phone", AppConfig.GUIDE_PHONE)
-                put("problemType", problemType)
-                if (location != null) {
-                    put("lat", location.first)
-                    put("lon", location.second)
-                } else {
-                    put("lat", JSONObject.NULL)
-                    put("lon", JSONObject.NULL)
-                }
-            }
-
-            conn.outputStream.use { os ->
-                os.write(json.toString().toByteArray(Charsets.UTF_8))
-            }
-
-            val code = conn.responseCode
-            if (code == 200) {
-                Log.d(TAG, "✅ پیام اضطراری به سرور ارسال شد")
-                mainHandler.post {
-                    Toast.makeText(
-                        context,
-                        "✅ پیام اضطراری به پنل ارسال شد",
-                        Toast.LENGTH_SHORT
-                    ).show()
-                }
-            } else {
-                Log.w(TAG, "⚠️ پاسخ سرور: $code")
-            }
-            conn.disconnect()
-        } catch (e: Exception) {
-            Log.e(TAG, "❌ خطا در ارسال به سرور: ${e.message}")
-            mainHandler.post {
-                Toast.makeText(
-                    context,
-                    "⚠️ ارسال به پنل ناموفق (پیامک همچنان ارسال می‌شود)",
-                    Toast.LENGTH_SHORT
-                ).show()
-            }
+        val userInfo = if (user != null) {
+            "راهنما: ${user.fullName}\nاتوبوس: ${user.busNumber ?: "-"}"
+        } else {
+            "راهنما: نامشخص"
         }
+        return "🚨 گزارش اضطراری\nمشکل: $problemType\n$userInfo\n$locText"
     }
 
     private fun openSmsApp(context: Context, message: String) {
@@ -112,11 +76,7 @@ object EmergencySmsHelper {
         try {
             context.startActivity(intent)
         } catch (e: Exception) {
-            Toast.makeText(
-                context,
-                "اپلیکیشن پیامک روی گوشی پیدا نشد",
-                Toast.LENGTH_LONG
-            ).show()
+            Log.e(TAG, "خطا: ${e.message}")
         }
     }
 }
