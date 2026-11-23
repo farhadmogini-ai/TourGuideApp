@@ -12,7 +12,7 @@ object AppConfig {
     const val MANAGER_PHONE_NUMBER = "09148687240"
 
     // 🌐 آدرس سرور — IP کامپیوتر شما
-    const val SERVER_URL = "http://192.168.1.11:3000"
+    const val SERVER_URL = "http://192.168.1.13:3000"
 
     // ⚠️ اطلاعات راهنما دیگر اینجا نیست؛ از سرور در زمان لاگین دریافت می‌شود
 }
