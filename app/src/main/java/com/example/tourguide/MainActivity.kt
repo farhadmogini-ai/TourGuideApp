@@ -80,8 +80,10 @@ class MainActivity : ComponentActivity() {
                     var user by remember { mutableStateOf(SessionManager.getUser(context)) }
 
                     if (user == null) {
-                        LoginScreen(serverUrl = AppConfig.SERVER_URL,
-                            onLoginSuccess = { u -> user = u })
+                        LoginScreen(
+                            serverUrl = AppConfig.SERVER_URL,
+                            onLoginSuccess = { u -> user = u }
+                        )
                     } else {
                         HomeScreen(
                             user = user!!,
@@ -187,10 +189,14 @@ fun LoginScreen(serverUrl: String, onLoginSuccess: (User) -> Unit) {
             modifier = Modifier.fillMaxWidth(),
             enabled = !loading
         ) {
-            if (loading) CircularProgressIndicator(
-                modifier = Modifier.height(20.dp), color = Color.White
-            )
-            else Text("ورود")
+            if (loading) {
+                CircularProgressIndicator(
+                    modifier = Modifier.height(20.dp),
+                    color = Color.White
+                )
+            } else {
+                Text("ورود")
+            }
         }
 
         Spacer(Modifier.height(16.dp))
@@ -201,6 +207,7 @@ fun LoginScreen(serverUrl: String, onLoginSuccess: (User) -> Unit) {
         )
     }
 }
+
 @Composable
 fun HomeScreen(user: User, onStartTracking: () -> Unit, onLogout: () -> Unit) {
     val context = LocalContext.current
@@ -236,7 +243,10 @@ fun HomeScreen(user: User, onStartTracking: () -> Unit, onLogout: () -> Unit) {
 
         if (location != null) {
             val (lat, lon) = location!!
-            Text(text = "موقعیت: %.5f , %.5f".format(lat, lon), style = MaterialTheme.typography.bodySmall)
+            Text(
+                text = "موقعیت: %.5f , %.5f".format(lat, lon),
+                style = MaterialTheme.typography.bodySmall
+            )
         }
 
         OSMComposableMap(
@@ -272,7 +282,11 @@ fun HomeScreen(user: User, onStartTracking: () -> Unit, onLogout: () -> Unit) {
         EmergencyDialog(location = location, onDismiss = { showEmergencyDialog = false })
     }
     if (showRoutingDialog) {
-        RoutingDialog(location = location, stations = stations, onDismiss = { showRoutingDialog = false })
+        RoutingDialog(
+            location = location,
+            stations = stations,
+            onDismiss = { showRoutingDialog = false }
+        )
     }
 }
 
@@ -315,8 +329,10 @@ fun RoutingDialog(
                             ) {
                                 Column(Modifier.fillMaxWidth(), horizontalAlignment = Alignment.Start) {
                                     Text(station.name, style = MaterialTheme.typography.bodyLarge)
-                                    Text("%.1f کیلومتر • ~%d دقیقه".format(distance, minutes),
-                                        style = MaterialTheme.typography.bodySmall)
+                                    Text(
+                                        "%.1f کیلومتر • ~%d دقیقه".format(distance, minutes),
+                                        style = MaterialTheme.typography.bodySmall
+                                    )
                                 }
                             }
                         }
@@ -337,10 +353,13 @@ fun EmergencyDialog(location: Pair<Double, Double>?, onDismiss: () -> Unit) {
         text = {
             Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 listOf("خرابی اتوبوس", "گم شدن مسافر", "بیماری مسافر").forEach { type ->
-                    Button(onClick = {
-                        EmergencySmsHelper.sendEmergencySms(context, type, location)
-                        onDismiss()
-                    }, modifier = Modifier.fillMaxWidth()) { Text(type) }
+                    Button(
+                        onClick = {
+                            EmergencySmsHelper.sendEmergencySms(context, type, location)
+                            onDismiss()
+                        },
+                        modifier = Modifier.fillMaxWidth()
+                    ) { Text(type) }
                 }
             }
         },
@@ -358,12 +377,14 @@ fun OSMComposableMap(
     val lifecycleOwner = LocalLifecycleOwner.current
 
     val tileSource = remember {
-        XYTileSource("OpenTopoMap", 0, 17, 256, ".png",
+        XYTileSource(
+            "OpenTopoMap", 0, 17, 256, ".png",
             arrayOf(
                 "https://a.tile.opentopomap.org/",
                 "https://b.tile.opentopomap.org/",
                 "https://c.tile.opentopomap.org/"
-            ), "© OpenTopoMap (CC-BY-SA)")
+            ), "© OpenTopoMap (CC-BY-SA)"
+        )
     }
 
     val mapView = remember {
