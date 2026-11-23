@@ -167,17 +167,19 @@ fun LoginScreen(serverUrl: String, onLoginSuccess: (User) -> Unit) {
                 error = null
                 loading = true
                 scope.launch {
-                    val result = ApiClient.login(serverUrl, username.trim(), password)
-                    loading = false
-                    if (result == null) {
-                        error = "نام کاربری یا رمز اشتباه است"
-                    } else {
-                        val (token, user) = result
-                        if (user.role != "guide") {
-                            error = "این اپ مخصوص راهنماست"
-                        } else {
-                            SessionManager.save(context, token, user)
-                            onLoginSuccess(user)
+                    when (val result = ApiClient.login(serverUrl, username.trim(), password)) {
+                        is LoginResult.Success -> {
+                            loading = false
+                            if (result.user.role != "guide") {
+                                error = "این اپ مخصوص راهنماست"
+                            } else {
+                                SessionManager.save(context, result.token, result.user)
+                                onLoginSuccess(result.user)
+                            }
+                        }
+                        is LoginResult.Failure -> {
+                            loading = false
+                            error = result.message
                         }
                     }
                 }
@@ -190,9 +192,15 @@ fun LoginScreen(serverUrl: String, onLoginSuccess: (User) -> Unit) {
             )
             else Text("ورود")
         }
+
+        Spacer(Modifier.height(16.dp))
+        Text(
+            text = "سرور: $serverUrl",
+            style = MaterialTheme.typography.bodySmall,
+            color = Color.Gray
+        )
     }
 }
-
 @Composable
 fun HomeScreen(user: User, onStartTracking: () -> Unit, onLogout: () -> Unit) {
     val context = LocalContext.current
